@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "GIF strategy gate",
+    "description": "Blocks the first animated-image read in a session and hands the model the GIF-reading strategy document, so the rule is enforced at the tool entry instead of a skill description."
+  }
+}

@@ -1,0 +1,4 @@
+# dsh-gif-gate: one Host listener on tools/pre-execute, no Client half.
+- insert:
+    - id: dsh-gif-gate
+      name: dsh-gif-gate
