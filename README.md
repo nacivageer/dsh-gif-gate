@@ -15,7 +15,7 @@
 
 - 监听 `tools/pre-execute`，只看 `read_image` / `read_animation`（可配）、只对 `.gif` / `.webp`
 - 本会话未读策略时拒绝，拒绝理由里附策略文档前 30 行
-- 用 `read` 读过策略文档后，本会话放行
+- 用 `read` 读过策略文档后放行——状态按 **agent** 计，同一会话里的子代理各自过一次闸（见「限制」）
 - 最多拦两次，之后放行 —— 防死锁，也防模型无视两次还卡住
 - 默认策略文档是包内自带的 [`strategy-template.md`](strategy-template.md)（一页检查单），装上就能跑
 - 策略文档不存在时放行，并在启动日志里 warning（fail-open，但不再静默）
@@ -59,17 +59,19 @@ dsh plugin --profile <profile> add github:nacivageer/dsh-gif-gate
 - 只拦已知的看图工具；将来若换工具名需要同步改 `tools`
 - 动图模式下只覆盖**按文件路径读** `.gif` / `.webp`。贴进聊天框的动图由 `dsh-read-animation` 在附件入库时解成胶片条，不经过 `read_image`，这里拦不到
 - `guardStatic` 模式下判断依据是**工具**不是扩展名：只要走 `read_image` / `read_animation` 就拦，因此动画 WebP、APNG 也会一起被拦（本来也该拦），副作用是「读图」这个动作变贵了一次
-- 拦截状态在内存，重启后重置（可接受：每个会话本来就该过一次）
-- 拦截状态按 **agent** 计，不是按会话：主会话读过策略后放行，同一会话里新起的**子代理状态是空的**——它第一次读图会被拦一次，并自己读一遍策略。这是有意的（子代理有自己的上下文），但派子代理去读图时会计入这份成本
+- 拦截状态在内存，重启后重置；状态按 **agent** 计，不是按会话：主会话读过策略后放行，同一会话里新起的**子代理状态是空的**——它第一次读图会被拦一次，并自己读一遍策略。这是有意的（子代理有自己的上下文），但派子代理去读图时会计入这份成本
+- 「读过」的判定是**调用过 `read` 且文件名匹配**，不是读完了：带 `offset` / `limit` 的部分读、以及读取失败（文件不存在或不可读）的调用，同样放行该 agent。判断发生在 `tools/pre-execute`（执行之前），那里只看得到参数，看不到读回来多少
 - 拦的是"读动图"这个动作，不校验模型读完策略后是否真按策略做了
-- 截至 2026-11-11，拦截都来自探针（2026-11-08 22:30 的安装验证、2026-11-11 重启后的配置验证）；真实任务尚无拦截记录
+- 截至 2026-11-13，真实任务仍无拦截记录；现有拦截都来自探针（2026-11-08 22:30 安装验证、2026-11-11 重启后配置验证、2026-11-13 子代理实测）
 
 ## English
 
 A host-only gate for DeepSeek Harness: the first `read_image` / `read_animation` of a
-`.gif` / `.webp` in a session is denied once, with the opening lines of a strategy
-document in the reason. After the model reads that document, the session is released.
-Two denials at most, then it fails open.
+`.gif` / `.webp` for an agent is denied once, with the opening lines of a strategy
+document in the reason. After the model reads that document, that agent is released (gate
+state is per agent — a subagent starts unread); "reads" means the `read` tool was called on
+that file name, not that the file was read whole — a partial read with `offset` / `limit`,
+or a read that fails, releases it too. Two denials at most, then it fails open.
 
 It ships a one-page `strategy-template.md` so it works out of the box; point it at your
 own document with `DSH_GIF_STRATEGY` or `strategyPath`. It only covers reads by file
