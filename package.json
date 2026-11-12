@@ -1,6 +1,6 @@
 {
   "name": "dsh-gif-gate",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "license": "MIT",
   "author": "72NG",
   "description": "Host-only gate that blocks the first animated-image read in a session until the model has read a strategy document — enforcement at the tool entry, not in a skill description. · 看动图前先读策略，没读就拦一次。",

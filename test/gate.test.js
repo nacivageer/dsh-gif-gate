@@ -90,3 +90,38 @@ test('reading an unrelated file does not release the session', async () => {
   await gate.call({ name: 'read', arguments: { file_path: 'C:\\tmp\\notes.md' }, agent: { id: 'i' } })
   assert.equal((await gate.call(readGif('i'))).kind, 'deny')
 })
+
+test('guardStatic off: png still passes (默认行为不变)', async () => {
+  const gate = makeGate()
+  assert.deepEqual(await gate.call(readGif('j', 'C:\\tmp\\still.png')), { allowed: true })
+})
+
+test('guardStatic on: png is denied until strategy read', async () => {
+  const gate = makeGate({ guardStatic: true })
+  const first = await gate.call(readGif('k', 'C:\\tmp\\still.png'))
+  assert.equal(first.kind, 'deny')
+  assert.match(first.reason, /拦下读图/)
+  const ack = await gate.call({
+    name: 'read',
+    arguments: { file_path: TEMPLATE },
+    agent: { id: 'k' },
+  })
+  assert.deepEqual(ack, { allowed: true })
+  assert.deepEqual(await gate.call(readGif('k', 'C:\\tmp\\still.png')), { allowed: true })
+})
+
+test('guardStatic on: jpg and gif both guarded', async () => {
+  const jpgGate = makeGate({ guardStatic: true })
+  assert.equal((await jpgGate.call(readGif('l', 'C:\\tmp\\photo.jpg'))).kind, 'deny')
+  const gifGate = makeGate({ guardStatic: true })
+  assert.equal((await gifGate.call(readGif('m', 'C:\\tmp\\clip.gif'))).kind, 'deny')
+})
+
+test('guardStatic on: 不看扩展名——无后缀、heic、大写 PNG 都拦', async () => {
+  const noExt = makeGate({ guardStatic: true })
+  assert.equal((await noExt.call(readGif('n', 'C:\\tmp\\screenshot'))).kind, 'deny')
+  const heic = makeGate({ guardStatic: true })
+  assert.equal((await heic.call(readGif('o', 'C:\\tmp\\photo.heic'))).kind, 'deny')
+  const upper = makeGate({ guardStatic: true })
+  assert.equal((await upper.call(readGif('p', 'C:\\tmp\\IMG_0001.PNG'))).kind, 'deny')
+})

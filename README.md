@@ -19,6 +19,7 @@
 - 最多拦两次，之后放行 —— 防死锁，也防模型无视两次还卡住
 - 默认策略文档是包内自带的 [`strategy-template.md`](strategy-template.md)（一页检查单），装上就能跑
 - 策略文档不存在时放行，并在启动日志里 warning（fail-open，但不再静默）
+- **`guardStatic: true` 时，拦截范围从动图扩到所有图片**：不再看扩展名，凡 `read_image` / `read_animation` 调用都先过闸——heic、apng（`.png` 里的动图）、无后缀截图、大写扩展名同样拦。默认 `false`，旧行为不变
 
 ## 安装
 
@@ -41,6 +42,8 @@ dsh plugin --profile <profile> add github:nacivageer/dsh-gif-gate
 
 路径指向任意 `.md`。插件靠**文件名**判断「模型读的是不是这份文档」，所以读一份同名文件也会放行；换了文件名就照新名字匹配。
 
+开了 `guardStatic` 的话，这份文档就是所有识图动作的入口——把「先查什么库、什么条件下才开图、看完登记到哪」写在最前面，因为拦截提示只展开前 30 行。
+
 ## 配置
 
 不声明 `Config`，用环境变量或 patch 行覆盖：
@@ -49,11 +52,13 @@ dsh plugin --profile <profile> add github:nacivageer/dsh-gif-gate
 |---|---|
 | `strategyPath` / `DSH_GIF_STRATEGY` | 包内 `strategy-template.md` |
 | `tools` | `['read_image', 'read_animation']` |
+| `guardStatic` / `DSH_GIF_GATE_STATIC=1` | `false`（只拦动图） |
 
 ## 限制
 
 - 只拦已知的看图工具；将来若换工具名需要同步改 `tools`
-- 只覆盖**按文件路径读** `.gif` / `.webp`。贴进聊天框的动图由 `dsh-read-animation` 在附件入库时解成胶片条，不经过 `read_image`，这里拦不到
+- 动图模式下只覆盖**按文件路径读** `.gif` / `.webp`。贴进聊天框的动图由 `dsh-read-animation` 在附件入库时解成胶片条，不经过 `read_image`，这里拦不到
+- `guardStatic` 模式下判断依据是**工具**不是扩展名：只要走 `read_image` / `read_animation` 就拦，因此动画 WebP、APNG 也会一起被拦（本来也该拦），副作用是「读图」这个动作变贵了一次
 - 拦截状态在内存，重启后重置（可接受：每个会话本来就该过一次）
 - 拦的是"读动图"这个动作，不校验模型读完策略后是否真按策略做了
 - 截至 2026-11-11，拦截都来自探针（2026-11-08 22:30 的安装验证、2026-11-11 重启后的配置验证）；真实任务尚无拦截记录
@@ -69,6 +74,10 @@ It ships a one-page `strategy-template.md` so it works out of the box; point it 
 own document with `DSH_GIF_STRATEGY` or `strategyPath`. It only covers reads by file
 path; GIFs pasted into the composer are decoded by `dsh-read-animation` before any tool
 runs and are out of scope.
+
+With `guardStatic: true` (off by default) the gate stops filtering by extension: every
+`read_image` / `read_animation` call is gated, so static images (heic, apng, extension-less
+screenshots) are covered too.
 
 ## License
 

@@ -14,6 +14,9 @@
  * 默认策略文档是包内自带的 strategy-template.md（一页检查单）；要换成自己的文档，
  * 用 DSH_GIF_STRATEGY 环境变量或配置 strategyPath 指过去。
  *
+ * guardStatic（默认 false）：打开后拦截范围从「动图」扩到 png/jpg 等静态图，
+ * 用于「认图也要先过策略」的场景（如识图库）。默认关闭，保持旧行为。
+ *
  * 行为：本会话第一次（以及第二次）读动图被拒绝，拒绝理由里带策略文档的开头；
  * 模型用 read 读过策略文档后自动放行，本会话后续不再拦。最多拦两次，防死锁。
  */
@@ -35,6 +38,10 @@ export function apply(ctx, config = {}) {
     process.env.DSH_GIF_STRATEGY || config.strategyPath || DEFAULT_STRATEGY
   const strategyName = strategyPath.split(/[\\/]/).pop()
   const guarded = new Set(config.tools || DEFAULT_TOOLS)
+  // guardStatic: 默认关，只拦动图；打开后 png/jpg 等静态图也过闸。
+  // 这是给「识图流程也要强制」的场用的，默认不变以免破坏现有用户。
+  const guardStatic =
+    config.guardStatic === true || process.env.DSH_GIF_GATE_STATIC === '1'
   const sessions = new Map()
 
   if (!existsSync(strategyPath)) {
@@ -76,7 +83,7 @@ export function apply(ctx, config = {}) {
 
   const reasonOf = (attempt, skeleton) =>
     [
-      `[gif-gate] 这是本会话第 ${attempt} 次拦下读动图。先过策略，再碰图。`,
+      `[gif-gate] 这是本会话第 ${attempt} 次拦下读${guardStatic ? '图' : '动图'}。先过策略，再碰图。`,
       '',
       `策略文档：${strategyPath}`,
       '',
@@ -100,7 +107,9 @@ export function apply(ctx, config = {}) {
       }
 
       if (!guarded.has(exec.name)) return next()
-      if (typeof target !== 'string' || !ANIMATED.test(target)) return next()
+      // 动图模式按扩展名过滤；guardStatic 不看扩展名——被拦的是 read_image /
+      // read_animation 这两个工具本身，任何图片格式（heic、apng、无后缀截图）都在范围内。
+      if (!guardStatic && (typeof target !== 'string' || !ANIMATED.test(target))) return next()
 
       const state = stateOf(session)
       if (state.read) return next()
