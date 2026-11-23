@@ -37,7 +37,8 @@
     "url": "https://github.com/nacivageer/dsh-gif-gate/issues"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "dsh": ">=0.2.2-rc.1"
   },
   "scripts": {
     "test": "node --test test/gate.test.js"
